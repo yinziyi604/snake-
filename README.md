@@ -6,3 +6,5 @@
 ## 技术
 - 纯 HTML / CSS / JavaScript，单文件实现
 - 部署于 Vercel：https://snake-yinziyi604.vercel.app
+## 更新日志
+- 2026-09-17：首次部署上线 Vercel
