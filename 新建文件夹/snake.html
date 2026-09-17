@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>喵喵蛇 · Kitty 版</title>
+<style>
+  :root{
+    --bg:#fdf2f6;
+    --panel:#ffffff;
+    --line:#f2dfe8;
+    --text:#2b2129;
+    --muted:#9b8792;
+    --accent:#e8467c;
+    --accent-2:#ff8fb3;
+    --accent-soft:rgba(232,70,124,.12);
+    --shadow:0 12px 32px rgba(232,70,124,.12);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(1000px 560px at 50% -8%, #ffffff 0%, var(--bg) 62%);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:18px 14px;min-height:100vh;
+  }
+  .app{
+    background:var(--panel);border:1px solid var(--line);border-radius:22px;
+    box-shadow:var(--shadow);padding:18px;width:100%;max-width:452px;
+  }
+
+  /* ---------- 顶部 ---------- */
+  .head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+  h1{font-size:18px;margin:0;letter-spacing:.4px;font-weight:700;white-space:nowrap}
+  h1 em{font-style:normal;color:var(--accent);transition:color .3s ease}
+  .stats{display:flex;gap:14px;font-variant-numeric:tabular-nums}
+  .stat{text-align:right;line-height:1.15}
+  .stat b{display:block;font-size:18px;font-weight:800;transition:transform .12s ease}
+  .stat small{font-size:10px;color:var(--muted);letter-spacing:.8px}
+  .stat.hot b{color:var(--accent);transform:scale(1.16)}
+  #best b{color:var(--accent)}
+
+  /* ---------- 棋盘 ---------- */
+  .stage{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+  canvas{display:block;width:100%;height:auto;touch-action:none}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:9px;text-align:center;padding:18px;
+    background:rgba(255,250,252,.9);backdrop-filter:blur(4px);
+    transition:opacity .18s ease;
+  }
+  .overlay.hide{opacity:0;pointer-events:none}
+  .overlay h2{margin:0;font-size:21px;font-weight:800}
+  .overlay p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.75}
+  .overlay .big{font-size:32px;font-weight:800;color:var(--accent)}
+  .overlay .legend{font-size:11.5px;color:var(--muted);line-height:2;max-width:300px}
+  .overlay .pawns{display:flex;gap:14px;justify-content:center;align-items:center;margin:2px 0 2px}
+  .overlay .pawns canvas{width:34px;height:34px;border:0;background:none}
+
+  .btn{
+    appearance:none;border:0;cursor:pointer;font-family:inherit;
+    background:linear-gradient(180deg,var(--accent-2),var(--accent));
+    color:#fff;font-size:14px;font-weight:700;padding:11px 28px;border-radius:14px;
+    box-shadow:0 8px 18px var(--accent-soft);
+    transition:transform .12s ease, background .3s ease;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(1px)}
+
+  /* ---------- 状态条 ---------- */
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;min-height:22px}
+  .chip{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:#f7f2f5;color:var(--muted)}
+  .chip.on{background:var(--accent-soft);color:var(--accent)}
+  .chip.combo{background:#fff1e6;color:#c2600a}
+  .chip.slow{background:#e6f7fb;color:#0b7c96}
+
+  /* ---------- 设置 ---------- */
+  .row{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .row .label{font-size:11px;color:var(--muted);width:32px;flex:none;letter-spacing:.5px}
+  .seg{display:flex;gap:6px;flex:1;flex-wrap:wrap;align-items:center}
+  .opt{
+    appearance:none;border:1px solid var(--line);background:#fff;color:var(--muted);
+    font-family:inherit;font-size:11.5px;padding:5px 12px;border-radius:10px;cursor:pointer;
+    transition:all .15s ease;font-weight:600;
+  }
+  .opt:hover{border-color:#e7cbd8;color:var(--text)}
+  .opt.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .swatch{
+    appearance:none;width:26px;height:26px;border-radius:50%;cursor:pointer;
+    border:2px solid #fff;box-shadow:0 0 0 1px var(--line);padding:0;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .swatch:hover{transform:scale(1.08)}
+  .swatch.on{box-shadow:0 0 0 2px var(--accent);transform:scale(1.06)}
+
+  /* ---------- 方向键 ---------- */
+  .pad{margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-width:212px;margin-left:auto;margin-right:auto}
+  .pad button{
+    appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);
+    border-radius:14px;padding:13px 0;font-size:16px;cursor:pointer;font-family:inherit;
+    transition:background .12s ease, transform .08s ease;
+  }
+  .pad button:active{background:var(--accent-soft);transform:scale(.95)}
+  .pad .sp{visibility:hidden}
+
+  /* ---------- 底部 ---------- */
+  .foot{margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .hint{font-size:11px;color:var(--muted);line-height:1.9}
+  kbd{
+    display:inline-block;background:#faf4f7;border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:6px;padding:0 5px;font-size:10.5px;font-family:inherit;color:#6b5762;margin:0 1px;
+  }
+  .ghost{
+    background:#fff;border:1px solid var(--line);color:var(--muted);
+    padding:7px 15px;font-size:12px;border-radius:11px;box-shadow:none;font-weight:600;
+    appearance:none;cursor:pointer;font-family:inherit;transition:all .15s ease;
+  }
+  .ghost:hover{background:#fdf5f8;color:var(--text)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="head">
+    <h1>喵喵蛇 <em>Kitty</em></h1>
+    <div class="stats">
+      <div class="stat" id="scoreBox"><small>得分</small><b id="score">0</b></div>
+      <div class="stat" id="best"><small>最高</small><b id="bestScore">0</b></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv" width="880" height="880"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="ovTitle">准备好了吗？</h2>
+      <p id="ovText"></p>
+      <div class="pawns">
+        <canvas class="pawn" data-pawn="fish" width="68" height="68"></canvas>
+        <canvas class="pawn" data-pawn="bell" width="68" height="68"></canvas>
+        <canvas class="pawn" data-pawn="yarn" width="68" height="68"></canvas>
+        <canvas class="pawn" data-pawn="milk" width="68" height="68"></canvas>
+      </div>
+      <div class="legend" id="ovLegend"></div>
+      <button class="btn" id="ovBtn">开始游戏</button>
+    </div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="row">
+    <span class="label">配色</span>
+    <div class="seg" id="themeSeg"></div>
+  </div>
+  <div class="row">
+    <span class="label">难度</span>
+    <div class="seg" id="diffSeg">
+      <button class="opt" data-diff="easy">悠闲</button>
+      <button class="opt" data-diff="normal">标准</button>
+      <button class="opt" data-diff="hard">竞速</button>
+    </div>
+  </div>
+  <div class="row">
+    <span class="label">模式</span>
+    <div class="seg">
+      <button class="opt" id="wrapBtn">穿墙：关</button>
+      <button class="opt" id="soundBtn">音效：开</button>
+      <button class="opt" id="pauseBtn">暂停</button>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button class="sp"></button>
+    <button data-dir="up">↑</button>
+    <button class="sp"></button>
+    <button data-dir="left">←</button>
+    <button data-dir="down">↓</button>
+    <button data-dir="right">→</button>
+  </div>
+
+  <div class="foot">
+    <span class="hint">
+      <kbd>↑↓←→</kbd>/<kbd>WASD</kbd> 移动 · <kbd>空格</kbd> 暂停 · <kbd>R</kbd> 重开<br>
+      <kbd>1</kbd>~<kbd>4</kbd> 换配色 · <kbd>T</kbd> 穿墙 · <kbd>M</kbd> 静音
+    </span>
+    <button class="btn ghost" id="resetBtn">重开一局</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ==================== 常量 ==================== */
+  const COLS = 20, ROWS = 20;
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const CELL = W / COLS;
+
+  const THEMES = {
+    kitty:  { name:'Kitty', hue:336, sat:74, light:76, food:'#ff7aa8',
+              bg:'#fff9fb', checker:'#fdeef4', accent:'#e8467c', accent2:'#ff8fb3',
+              dot:'linear-gradient(135deg,#ffd3e2,#e8467c)' },
+    ocean:  { name:'海洋', hue:205, sat:62, light:70, food:'#f97316',
+              bg:'#fbfdff', checker:'#edf4fc', accent:'#1f6feb', accent2:'#4aa8f0',
+              dot:'linear-gradient(135deg,#1f6feb,#7fd3f7)' },
+    violet: { name:'紫晶', hue:278, sat:58, light:74, food:'#22c55e',
+              bg:'#fdfbff', checker:'#f3effc', accent:'#7c3aed', accent2:'#a855f7',
+              dot:'linear-gradient(135deg,#7c3aed,#e0a9ff)' },
+    sunset: { name:'暖阳', hue:22,  sat:76, light:72, food:'#0ea5e9',
+              bg:'#fffcf8', checker:'#fcf2e9', accent:'#e2632a', accent2:'#f7a23c',
+              dot:'linear-gradient(135deg,#e2632a,#ffd28a)' }
+  };
+  const THEME_KEYS = Object.keys(THEMES);
+  const DIFFS = { easy:{name:'悠闲', ms:170}, normal:{name:'标准', ms:126}, hard:{name:'竞速', ms:90} };
+  const APPLE = 10;
+  const BONUS = {
+    bell: { color:'#f0b429', ttl:9000, base:50 },   // 铃铛
+    yarn: { color:'#8b5cf6', ttl:9000, base:30 },   // 毛线球
+    milk: { color:'#06b6d4', ttl:8000, base:15 }    // 牛奶
+  };
+  const SLOW_MS = 6000;
+  const BEST_KEY = 'snake.kitty.best.v1';
+  const PREF_KEY = 'snake.kitty.pref.v1';
+
+  /* ==================== DOM ==================== */
+  const elScore  = document.getElementById('score');
+  const elBest   = document.getElementById('bestScore');
+  const scoreBox = document.getElementById('scoreBox');
+  const overlay  = document.getElementById('overlay');
+  const ovTitle  = document.getElementById('ovTitle');
+  const ovText   = document.getElementById('ovText');
+  const ovLegend = document.getElementById('ovLegend');
+  const ovBtn    = document.getElementById('ovBtn');
+  const chipsBox = document.getElementById('chips');
+  const themeSeg = document.getElementById('themeSeg');
+  const diffSeg  = document.getElementById('diffSeg');
+  const wrapBtn  = document.getElementById('wrapBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  /* ==================== 状态 ==================== */
+  let theme = 'kitty', diff = 'normal', wrap = false, soundOn = true;
+  let snake, dir, queue, food, bonus, score, combo, lastEat, maxCombo;
+  let alive, paused, started, slowUntil, shakeUntil, pattern;
+  let particles = [], floats = [];
+  let lastChipKey = '', lastT = 0, acc = 0;
+
+  let best = Number(localStorage.getItem(BEST_KEY) || 0);
+  elBest.textContent = best;
+
+  try{
+    const p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+    if(p.theme && THEMES[p.theme]) theme = p.theme;
+    if(p.diff && DIFFS[p.diff]) diff = p.diff;
+    if(typeof p.wrap === 'boolean') wrap = p.wrap;
+    if(typeof p.sound === 'boolean') soundOn = p.sound;
+  }catch(e){}
+
+  function savePref(){
+    try{ localStorage.setItem(PREF_KEY, JSON.stringify({theme:theme, diff:diff, wrap:wrap, sound:soundOn})); }catch(e){}
+  }
+
+  /* ==================== 音效 ==================== */
+  let ac = null;
+  function tone(freq, dur, type, vol, slideTo){
+    if(!soundOn) return;
+    try{
+      if(!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if(ac.state === 'suspended') ac.resume();
+      const o = ac.createOscillator(), g = ac.createGain(), t0 = ac.currentTime;
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t0);
+      if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+      g.gain.setValueAtTime(vol || 0.05, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(ac.destination);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    }catch(e){}
+  }
+  // 喵叫：两声短促上滑，带点颤音
+  function meow(){
+    tone(620, .09, 'sawtooth', .028, 880);
+    setTimeout(function(){ tone(900, .12, 'sawtooth', .022, 620); }, 90);
+  }
+
+  /* ==================== 主题 ==================== */
+  function hexA(hex, a){
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function applyTheme(){
+    const th = THEMES[theme], r = document.documentElement.style;
+    r.setProperty('--accent', th.accent);
+    r.setProperty('--accent-2', th.accent2);
+    r.setProperty('--accent-soft', hexA(th.accent, .14));
+    r.setProperty('--line', hexA(th.accent, .18));
+    r.setProperty('--bg', th.checker);
+
+    const off = document.createElement('canvas');
+    off.width = off.height = CELL * 2;
+    const oc = off.getContext('2d');
+    oc.fillStyle = th.bg; oc.fillRect(0, 0, CELL * 2, CELL * 2);
+    oc.fillStyle = th.checker;
+    oc.fillRect(0, 0, CELL, CELL); oc.fillRect(CELL, CELL, CELL, CELL);
+    // 随机撒几个猫爪印做底纹
+    oc.fillStyle = hexA(th.accent, .05);
+    paw(oc, CELL * 0.5, CELL * 1.5, CELL * 0.34);
+    paw(oc, CELL * 1.5, CELL * 0.5, CELL * 0.3);
+    pattern = ctx.createPattern(off, 'repeat');
+    draw(performance.now());
+    paintPawns();
+  }
+
+  /* ==================== 猫猫素材绘制 ==================== */
+  // 猫爪印（也给画布外的迷你 canvas 用）
+  function paw(c, x, y, s){
+    c.beginPath(); c.ellipse(x, y + s * 0.35, s * 0.62, s * 0.52, 0, 0, Math.PI * 2); c.fill();
+    const toes = [[-0.62, -0.34], [-0.2, -0.6], [0.22, -0.58], [0.64, -0.3]];
+    for(let i = 0; i < toes.length; i++){
+      c.beginPath();
+      c.arc(x + toes[i][0] * s, y + toes[i][1] * s, s * 0.22, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  // 蝴蝶结
+  function bow(c, x, y, ang, s, color){
+    c.save(); c.translate(x, y); c.rotate(ang);
+    c.fillStyle = color;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(-s, -s * 0.72); c.lineTo(-s, s * 0.72); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(s, -s * 0.72); c.lineTo(s, s * 0.72); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, 0, s * 0.42, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // 猫耳
+  function ear(c, cx, cy, dx, dy, ux, uy, s, fill, stroke, inner){
+    c.beginPath();
+    c.moveTo(cx - dx * s - ux * s * 0.15, cy - dy * s - uy * s * 0.15);
+    c.lineTo(cx + dx * s - ux * s * 0.15, cy + dy * s - uy * s * 0.15);
+    c.lineTo(cx + ux * s * 1.35, cy + uy * s * 1.35);
+    c.closePath();
+    c.fillStyle = fill; c.fill();
+    c.strokeStyle = stroke; c.lineWidth = s * 0.16; c.stroke();
+    c.beginPath();
+    c.moveTo(cx - dx * s * 0.42 + ux * s * 0.2, cy - dy * s * 0.42 + uy * s * 0.2);
+    c.lineTo(cx + dx * s * 0.42 + ux * s * 0.2, cy + dy * s * 0.42 + uy * s * 0.2);
+    c.lineTo(cx + ux * s * 0.86, cy + uy * s * 0.86);
+    c.closePath();
+    c.fillStyle = inner;
+    c.fill();
+  }
+
+  // 猫猫头
+  function catHead(c, cx, cy, dx, dy, th, t){
+    const R = CELL * 0.42;
+    const px = -dy, py = dx;                                 // 垂直于前进方向
+    const face = 'hsl(' + th.hue + ',62%,97%)';
+    const line = 'hsl(' + th.hue + ',72%,74%)';
+    const accent = 'hsl(' + th.hue + ',80%,62%)';
+
+    // 耳朵（左右各一只，朝两侧张开）
+    ear(c, cx, cy, dx, dy, px, py, R * 0.5, face, line, 'hsla(' + th.hue + ',88%,80%,.75)');
+    ear(c, cx, cy, dx, dy, -px, -py, R * 0.5, face, line, 'hsla(' + th.hue + ',88%,80%,.75)');
+
+    // 脸
+    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.fillStyle = face; c.fill();
+    c.strokeStyle = line; c.lineWidth = CELL * 0.035; c.stroke();
+
+    // 腮红
+    c.save(); c.globalAlpha = .5;
+    c.fillStyle = 'hsl(' + th.hue + ',88%,84%)';
+    c.beginPath(); c.arc(cx + dx * R * 0.18 + px * R * 0.56, cy + dy * R * 0.18 + py * R * 0.56, R * 0.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + dx * R * 0.18 - px * R * 0.56, cy + dy * R * 0.18 - py * R * 0.56, R * 0.2, 0, Math.PI * 2); c.fill();
+    c.restore();
+
+    // 眼睛（向前偏移，带高光）
+    const ex = cx + dx * R * 0.3, ey = cy + dy * R * 0.3;
+    [[px, py, 1], [-px, -py, -1]].forEach(function(v){
+      const x = ex + v[0] * R * 0.4, y = ey + v[1] * R * 0.4;
+      c.fillStyle = '#3a2b33';
+      c.beginPath(); c.ellipse(x, y, R * 0.14, R * 0.18, Math.atan2(dy, dx), 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff';
+      c.beginPath(); c.arc(x - R * 0.05, y - R * 0.06, R * 0.055, 0, Math.PI * 2); c.fill();
+    });
+
+    // 鼻子（小三角）
+    const nx = cx + dx * R * 0.52, ny = cy + dy * R * 0.52;
+    c.fillStyle = accent;
+    c.beginPath();
+    c.moveTo(nx + dx * R * 0.16, ny + dy * R * 0.16);
+    c.lineTo(nx - dx * R * 0.05 + px * R * 0.14, ny - dy * R * 0.05 + py * R * 0.14);
+    c.lineTo(nx - dx * R * 0.05 - px * R * 0.14, ny - dy * R * 0.05 - py * R * 0.14);
+    c.closePath(); c.fill();
+
+    // 胡须
+    c.strokeStyle = hexA(th.accent, .45);
+    c.lineWidth = CELL * 0.03; c.lineCap = 'round';
+    [1, -1].forEach(function(sg){
+      [-0.34, 0.06].forEach(function(k){
+        const x0 = cx + px * sg * R * 0.6 + dx * R * k, y0 = cy + py * sg * R * 0.6 + dy * R * k;
+        const x1 = cx + px * sg * R * 1.5 + dx * R * (k + 0.42), y1 = cy + py * sg * R * 1.5 + dy * R * (k + 0.42);
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      });
+    });
+
+    // 蝴蝶结（戴在一只耳朵上）
+    bow(c, cx - px * R * 1.02, cy - py * R * 1.02, Math.atan2(py, px) - Math.PI / 2, R * 0.36, accent);
+  }
+
+  // 小鱼干
+  function fish(c, cx, cy, angle, color, s){
+    c.save(); c.translate(cx, cy); c.rotate(angle); c.scale(s, s);
+    c.fillStyle = color;
+    c.beginPath(); c.ellipse(0, 0, CELL * 0.25, CELL * 0.16, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath();
+    c.moveTo(-CELL * 0.2, 0); c.lineTo(-CELL * 0.4, -CELL * 0.15); c.lineTo(-CELL * 0.4, CELL * 0.15);
+    c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(CELL * 0.02, -CELL * 0.15); c.lineTo(CELL * 0.08, -CELL * 0.26);
+    c.lineTo(CELL * 0.14, -CELL * 0.14); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.85)';
+    c.beginPath(); c.arc(CELL * 0.11, -CELL * 0.03, CELL * 0.05, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#4a3540';
+    c.beginPath(); c.arc(CELL * 0.12, -CELL * 0.03, CELL * 0.024, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // 铃铛
+  function bell(c, cx, cy, color, t){
+    c.save();
+    c.fillStyle = color;
+    c.beginPath();
+    c.moveTo(cx - CELL * 0.26, cy + CELL * 0.14);
+    c.quadraticCurveTo(cx - CELL * 0.26, cy - CELL * 0.24, cx, cy - CELL * 0.24);
+    c.quadraticCurveTo(cx + CELL * 0.26, cy - CELL * 0.24, cx + CELL * 0.26, cy + CELL * 0.14);
+    c.closePath(); c.fill();
+    c.beginPath(); c.arc(cx, cy + CELL * 0.2, CELL * 0.085, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.7)';
+    c.beginPath(); c.arc(cx - CELL * 0.09, cy - CELL * 0.1, CELL * 0.05, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff8e1';
+    c.beginPath(); c.arc(cx, cy + CELL * 0.14, CELL * 0.045, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // 毛线球
+  function yarn(c, cx, cy, color, t){
+    c.save();
+    c.translate(cx, cy); c.rotate(t / 1400);
+    c.fillStyle = color;
+    c.beginPath(); c.arc(0, 0, CELL * 0.27, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.72)';
+    c.lineWidth = CELL * 0.042;
+    for(let i = 0; i < 3; i++){
+      c.beginPath();
+      c.ellipse(0, 0, CELL * 0.27, CELL * 0.27 * (0.3 + 0.25 * i), i * 0.7, 0, Math.PI * 2);
+      c.stroke();
+    }
+    c.fillStyle = 'rgba(255,255,255,.85)';
+    c.beginPath(); c.arc(-CELL * 0.09, -CELL * 0.09, CELL * 0.05, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // 牛奶瓶
+  function milk(c, cx, cy, color){
+    c.save();
+    c.strokeStyle = color; c.lineWidth = CELL * 0.045; c.lineJoin = 'round';
+    c.fillStyle = '#f2fbfe';
+    rrc(c, cx - CELL * 0.17, cy - CELL * 0.12, CELL * 0.34, CELL * 0.42, CELL * 0.07); c.fill(); c.stroke();
+    rrc(c, cx - CELL * 0.09, cy - CELL * 0.3, CELL * 0.18, CELL * 0.2, CELL * 0.05); c.fill(); c.stroke();
+    c.fillStyle = color;
+    rrc(c, cx - CELL * 0.14, cy - CELL * 0.38, CELL * 0.28, CELL * 0.1, CELL * 0.04); c.fill();
+    c.globalAlpha = .55;
+    c.beginPath(); c.arc(cx - CELL * 0.05, cy + CELL * 0.12, CELL * 0.055, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + CELL * 0.06, cy + CELL * 0.02, CELL * 0.038, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  function rrc(c, x, y, w, h, r){
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  // 猫爪肉垫（蛇身装饰）
+  function pad(c, cx, cy, s, color){
+    c.fillStyle = color;
+    c.beginPath(); c.ellipse(cx, cy + s * 0.3, s * 0.5, s * 0.42, 0, 0, Math.PI * 2); c.fill();
+    [[-0.42, -0.5], [0, -0.68], [0.42, -0.5]].forEach(function(p){
+      c.beginPath(); c.arc(cx + p[0] * s, cy + p[1] * s, s * 0.2, 0, Math.PI * 2); c.fill();
+    });
+  }
+
+  // 开局说明里的小图标
+  function paintPawns(){
+    const th = THEMES[theme];
+    document.querySelectorAll('.pawn').forEach(function(cn){
+      const c = cn.getContext('2d');
+      c.clearRect(0, 0, 68, 68);
+      const k = 68 / CELL;                     // 复用主画布尺寸比例
+      c.save(); c.scale(k, k);
+      const h = CELL / 2;
+      const type = cn.dataset.pawn;
+      if(type === 'fish') fish(c, h, h, 0, th.food, 1);
+      else if(type === 'bell') bell(c, h, h, BONUS.bell.color);
+      else if(type === 'yarn') yarn(c, h, h, BONUS.yarn.color, 0);
+      else milk(c, h, h, BONUS.milk.color);
+      c.restore();
+    });
+  }
+
+  /* ==================== 初始化 ==================== */
+  function freeCells(){
+    const occ = Object.create(null);
+    snake.forEach(function(s){ occ[s.x + ',' + s.y] = 1; });
+    if(food) occ[food.x + ',' + food.y] = 1;
+    if(bonus) occ[bonus.x + ',' + bonus.y] = 1;
+    const out = [];
+    for(let y = 0; y < ROWS; y++) for(let x = 0; x < COLS; x++){
+      if(!occ[x + ',' + y]) out.push({x:x, y:y});
+    }
+    return out;
+  }
+  function placeFood(){
+    const free = freeCells();
+    food = free.length ? free[(Math.random() * free.length) | 0] : null;
+  }
+  function placeBonus(){
+    if(bonus) return;
+    const free = freeCells();
+    if(!free.length) return;
+    const p = Math.random();
+    const type = p > 0.84 ? 'milk' : (p > 0.62 ? 'yarn' : 'bell');
+    const pos = free[(Math.random() * free.length) | 0];
+    bonus = { x:pos.x, y:pos.y, type:type, born:performance.now(), ttl:BONUS[type].ttl, leave:false, gone:0 };
+    tone(900, .07, 'triangle', .03, 1200);
+  }
+
+  function reset(){
+    const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
+    snake = [{x:cx,y:cy},{x:cx-1,y:cy},{x:cx-2,y:cy}];
+    dir = {x:1,y:0};
+    queue = [];
+    score = 0; combo = 0; maxCombo = 0; lastEat = 0;
+    alive = true; paused = false; started = false;
+    slowUntil = 0; shakeUntil = 0;
+    particles = []; floats = []; bonus = null;
+    acc = 0;
+    elScore.textContent = '0';
+    lastChipKey = '';
+    placeFood();
+    syncChips(); syncButtons();
+    draw(performance.now());
+    showOverlay('喵～准备好了吗？', '方向键 / WASD 控制方向<br>空格暂停 · R 重新开始', '开始游戏');
+  }
+
+  /* ==================== 主循环 ==================== */
+  function baseMs(){
+    return Math.max(58, DIFFS[diff].ms - Math.floor(score / 50) * 8);
+  }
+  function stepMs(){
+    const b = baseMs();
+    return performance.now() < slowUntil ? b * 1.75 : b;
+  }
+  function loop(t){
+    requestAnimationFrame(loop);
+    const dt = Math.min(120, t - (lastT || t));
+    lastT = t;
+
+    if(started && alive && !paused){
+      acc += dt;
+      let guard = 0;
+      while(acc >= stepMs() && guard++ < 5){ acc -= stepMs(); step(); }
+    } else { acc = 0; }
+
+    if(bonus){
+      if(!bonus.leave && t - bonus.born > bonus.ttl){ bonus.leave = true; bonus.gone = t + 260; }
+      if(bonus.leave && t > bonus.gone) bonus = null;
+    }
+
+    updateFX(dt);
+    draw(t);
+    syncChips(t);
+  }
+
+  /* ==================== 单步逻辑 ==================== */
+  function step(){
+    if(queue.length) dir = queue.shift();
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    if(head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS){
+      if(wrap){
+        head.x = (head.x + COLS) % COLS;
+        head.y = (head.y + ROWS) % ROWS;
+        tone(300, .05, 'sine', .025);
+      } else { return die(); }
+    }
+
+    const body = snake.slice(0, snake.length - 1);
+    for(let i = 0; i < body.length; i++){
+      if(body[i].x === head.x && body[i].y === head.y) return die();
+    }
+
+    snake.unshift(head);
+    let grow = false;
+
+    if(food && head.x === food.x && head.y === food.y){
+      grow = true;
+      bumpCombo();
+      gain(APPLE, head, THEMES[theme].food);
+      burst(head, THEMES[theme].food, 9);
+      meow();
+      placeFood();
+      if(Math.random() < 0.34) placeBonus();
+    }
+
+    if(bonus && head.x === bonus.x && head.y === bonus.y){
+      grow = true;
+      const cfg = BONUS[bonus.type];
+      bumpCombo();
+      gain(cfg.base, head, cfg.color);
+      burst(head, cfg.color, bonus.type === 'bell' ? 24 : 15);
+      if(bonus.type === 'milk'){
+        slowUntil = performance.now() + SLOW_MS;
+        tone(300, .28, 'sine', .045, 520);
+      } else if(bonus.type === 'bell'){
+        tone(680, .08, 'square', .04, 1020);
+        setTimeout(function(){ tone(1020, .1, 'square', .04, 1360); }, 80);
+      } else {
+        const cut = Math.min(2, Math.max(0, snake.length - 3));
+        for(let i = 0; i < cut; i++) snake.pop();
+        tone(560, .14, 'triangle', .045, 880);
+      }
+      bonus = null;
+    }
+
+    if(!grow) snake.pop();
+  }
+
+  function bumpCombo(){
+    const now = performance.now();
+    combo = (now - lastEat < 3000) ? combo + 1 : 1;
+    lastEat = now;
+    if(combo > maxCombo) maxCombo = combo;
+  }
+  function mult(){
+    return combo <= 1 ? 1 : Math.min(2.5, 1 + 0.25 * (combo - 1));
+  }
+  function gain(base, head, color){
+    const m = mult();
+    const pts = Math.round(base * m);
+    score += pts;
+    elScore.textContent = score;
+    scoreBox.classList.add('hot');
+    setTimeout(function(){ scoreBox.classList.remove('hot'); }, 140);
+    const mTxt = m > 1 ? ' x' + String(Math.round(m * 100) / 100) : '';
+    floats.push({
+      x: head.x * CELL + CELL / 2, y: head.y * CELL + CELL / 2,
+      text: '+' + pts + mTxt, color: color, life: 800, max: 800
+    });
+    tone(420 + Math.min(score, 420), .07, 'sine', .04, 640);
+  }
+
+  /* ==================== 粒子 / 飘字 ==================== */
+  function burst(cell, color, n){
+    for(let i = 0; i < n; i++){
+      const a = Math.random() * Math.PI * 2, sp = 0.6 + Math.random() * 2.4;
+      particles.push({
+        x: cell.x * CELL + CELL / 2, y: cell.y * CELL + CELL / 2,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 420 + Math.random() * 320, max: 740,
+        r: 1.6 + Math.random() * 3, color: color,
+        heart: Math.random() < 0.3, rot: Math.random() * Math.PI
+      });
+    }
+  }
+  function updateFX(dt){
+    const k = dt / 16.67;
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.x += p.vx * k; p.y += p.vy * k;
+      p.vx *= 0.96; p.vy = p.vy * 0.96 + 0.04 * k;
+      p.rot += 0.06 * k;
+      p.life -= dt;
+      if(p.life <= 0) particles.splice(i, 1);
+    }
+    for(let i = floats.length - 1; i >= 0; i--){
+      const f = floats[i];
+      f.y -= 0.55 * k; f.life -= dt;
+      if(f.life <= 0) floats.splice(i, 1);
+    }
+  }
+
+  /* ==================== 绘制 ==================== */
+  function rr(x, y, w, h, r){
+    rrc(ctx, x, y, w, h, r);
+  }
+
+  function draw(t){
+    if(!snake || !snake.length) return;    // 主题初始化时会先于 reset() 调用
+    const th = THEMES[theme];
+
+    let sx = 0, sy = 0;
+    if(t < shakeUntil){
+      const k = (shakeUntil - t) / 380;
+      sx = (Math.random() - 0.5) * 14 * k;
+      sy = (Math.random() - 0.5) * 14 * k;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(1, 0, 0, 1, sx, sy);
+
+    ctx.fillStyle = pattern || th.bg;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+
+    const gr = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.72);
+    gr.addColorStop(0, hexA(th.accent, .06));
+    gr.addColorStop(1, hexA(th.accent, 0));
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, W, H);
+
+    // 猫猫身体（粉嫩渐变 + 肉垫装饰）
+    const hueDrift = t / 90;
+    const n = snake.length;
+    for(let i = n - 1; i >= 1; i--){
+      const s = snake[i];
+      const k = i / Math.max(1, n - 1);
+      const size = CELL * (0.9 - 0.24 * k);
+      const pad2 = (CELL - size) / 2;
+      const hue = (th.hue + i * 15 + hueDrift) % 360;
+      const light = th.light - 4 + 8 * k;
+      ctx.fillStyle = 'hsl(' + hue.toFixed(0) + ',' + th.sat + '%,' + light + '%)';
+      rr(s.x * CELL + pad2, s.y * CELL + pad2, size, size, size * 0.34);
+      ctx.fill();
+      // 每两节画一枚小肉垫
+      if(i % 2 === 0){
+        ctx.save();
+        ctx.globalAlpha = 0.34;
+        pad(ctx, s.x * CELL + CELL / 2, s.y * CELL + CELL / 2, size * 0.24, 'hsl(' + hue.toFixed(0) + ',90%,90%)');
+        ctx.restore();
+      }
+    }
+
+    // 猫猫头
+    if(n){
+      const h = snake[0];
+      const cx = h.x * CELL + CELL / 2, cy = h.y * CELL + CELL / 2;
+      ctx.save();
+      ctx.shadowColor = hexA(th.accent, .45);
+      ctx.shadowBlur = 16;
+      catHead(ctx, cx, cy, dir.x, dir.y, th, t);
+      ctx.restore();
+    }
+
+    // 小鱼干（会朝向画面中心摆动）
+    if(food){
+      const fx = food.x * CELL + CELL / 2, fy = food.y * CELL + CELL / 2;
+      const ang = Math.atan2(H / 2 - fy, W / 2 - fx) + Math.sin(t / 700) * 0.25;
+      const pulse = 1 + 0.06 * Math.sin(t / 200);
+      ctx.save();
+      ctx.shadowColor = hexA(th.food, .45); ctx.shadowBlur = 14;
+      fish(ctx, fx, fy, ang, th.food, pulse);
+      ctx.restore();
+      // 小鱼干上方的小气泡，提示它是"食物"
+      ctx.save();
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t / 260);
+      ctx.fillStyle = th.food;
+      ctx.beginPath(); ctx.arc(fx + CELL * 0.28, fy - CELL * 0.28, CELL * 0.045, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // 道具 + 倒计时环
+    if(bonus){
+      const cfg = BONUS[bonus.type];
+      const bx = bonus.x * CELL + CELL / 2, by = bonus.y * CELL + CELL / 2;
+      const left = 1 - (t - bonus.born) / bonus.ttl;
+      const alpha = bonus.leave ? Math.max(0, (bonus.gone - t) / 260) : 1;
+      const bob = Math.sin(t / 220) * CELL * 0.07;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.save();
+      ctx.shadowColor = hexA(cfg.color, .55); ctx.shadowBlur = 18;
+      if(bonus.type === 'bell') bell(ctx, bx, by + bob, cfg.color, t);
+      else if(bonus.type === 'yarn') yarn(ctx, bx, by + bob, cfg.color, t);
+      else milk(ctx, bx, by + bob, cfg.color);
+      ctx.restore();
+      ctx.strokeStyle = hexA(cfg.color, .45);
+      ctx.lineWidth = CELL * 0.07; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(bx, by, CELL * 0.48, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, left));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 粒子（圆形 + 爱心）
+    for(let i = 0; i < particles.length; i++){
+      const p = particles[i];
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color;
+      if(p.heart){
+        ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(p.r / 5, p.r / 5);
+        ctx.beginPath();
+        ctx.moveTo(0, 2.6);
+        ctx.bezierCurveTo(-6, -2.2, -2.6, -7, 0, -3.6);
+        ctx.bezierCurveTo(2.6, -7, 6, -2.2, 0, 2.6);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 飘字
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for(let i = 0; i < floats.length; i++){
+      const f = floats[i];
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, f.life / f.max);
+      ctx.font = '800 ' + Math.round(CELL * 0.46) + 'px -apple-system,"PingFang SC",sans-serif';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,.92)';
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.restore();
+    }
+
+    // 喝牛奶时的蓝色柔和边框
+    if(performance.now() < slowUntil){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(6,182,212,.42)';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, W - 10, H - 10);
+      ctx.restore();
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /* ==================== UI 同步 ==================== */
+  function syncChips(){
+    const now = performance.now();
+    const parts = [];
+    if(combo > 1 && now - lastEat < 3000){
+      parts.push(['连击 x' + combo + '（加分 x' + (Math.round(mult() * 100) / 100) + '）', 'combo']);
+    }
+    if(now < slowUntil) parts.push(['牛奶缓速 ' + ((slowUntil - now) / 1000).toFixed(1) + 's', 'slow']);
+    if(wrap) parts.push(['穿墙', 'on']);
+    const key = parts.map(function(p){ return p[0]; }).join('|');
+    if(key === lastChipKey) return;
+    lastChipKey = key;
+    chipsBox.innerHTML = parts.map(function(p){
+      return '<span class="chip ' + p[1] + '">' + p[0] + '</span>';
+    }).join('');
+  }
+  function syncButtons(){
+    wrapBtn.textContent = '穿墙：' + (wrap ? '开' : '关');
+    wrapBtn.classList.toggle('on', wrap);
+    soundBtn.textContent = '音效：' + (soundOn ? '开' : '关');
+    soundBtn.classList.toggle('on', soundOn);
+    pauseBtn.textContent = paused ? '继续' : '暂停';
+    pauseBtn.classList.toggle('on', paused);
+    Array.prototype.forEach.call(diffSeg.children, function(b){
+      b.classList.toggle('on', b.dataset.diff === diff);
+    });
+    Array.prototype.forEach.call(themeSeg.children, function(b){
+      b.classList.toggle('on', b.dataset.theme === theme);
+    });
+  }
+  function renderLegend(){
+    ovLegend.innerHTML =
+      '小鱼干 <b style="color:' + THEMES[theme].food + '">+10</b> · ' +
+      '<b style="color:#c98a00">铃铛 +50</b><br>' +
+      '<b style="color:#7c3aed">毛线球 +30 / 缩身 2 节</b> · ' +
+      '<b style="color:#0b7c96">牛奶 缓速 6 秒</b><br>' +
+      '3 秒内连续进食触发连击，加分最高 x2.5';
+  }
+  function showOverlay(title, text, btn){
+    ovTitle.innerHTML = title;
+    ovText.innerHTML = text;
+    renderLegend();
+    ovBtn.textContent = btn;
+    overlay.classList.remove('hide');
+  }
+
+  /* ==================== 流程 ==================== */
+  function start(){
+    if(started) return;
+    started = true; paused = false;
+    lastT = performance.now(); acc = 0;
+    overlay.classList.add('hide');
+    syncButtons();
+    tone(540, .08, 'triangle', .035, 800);
+  }
+  function restart(){ reset(); start(); }
+  function die(){
+    alive = false;
+    shakeUntil = performance.now() + 380;
+    burst(snake[0], THEMES[theme].food, 26);
+    tone(420, .34, 'sawtooth', .055, 90);
+    setTimeout(function(){ tone(300, .22, 'sine', .03, 140); }, 180);
+    const isNew = score > best;
+    if(isNew){
+      best = score;
+      localStorage.setItem(BEST_KEY, String(best));
+      elBest.textContent = best;
+    }
+    showOverlay(
+      isNew ? '喵！新纪录～' : '喵呜……游戏结束',
+      '本局得分 <span class="big">' + score + '</span><br>' +
+      '最高连击 x' + maxCombo + ' · 最高分 ' + best + '<br>' +
+      '难度 ' + DIFFS[diff].name + (wrap ? ' · 穿墙开' : ''),
+      '再来一局'
+    );
+    syncButtons();
+  }
+  function togglePause(){
+    if(!started || !alive) return;
+    paused = !paused;
+    if(paused){
+      showOverlay('喵～休息一下', '按 <kbd>空格</kbd> 或点「继续」恢复<br>也可以随时换配色、难度和模式', '继续游戏');
+    } else {
+      overlay.classList.add('hide');
+      lastT = performance.now(); acc = 0;
+    }
+    syncButtons();
+  }
+  function turn(nx, ny){
+    const last = queue.length ? queue[queue.length - 1] : dir;
+    if(last.x === -nx && last.y === -ny) return;
+    if(last.x === nx && last.y === ny) return;
+    if(queue.length < 3) queue.push({x:nx, y:ny});
+  }
+  function setTheme(k){
+    if(!THEMES[k]) return;
+    theme = k; applyTheme(); syncButtons(); savePref();
+    renderLegend();          // 只换说明里的颜色，不弹遮罩
+    tone(720, .05, 'sine', .03, 880);
+  }
+  function setDiff(d){
+    if(!DIFFS[d]) return;
+    diff = d; lastChipKey = ''; syncButtons(); savePref();
+    tone(620, .06, 'sine', .035, 840);
+  }
+
+  /* ==================== 输入 ==================== */
+  const KEYS = {
+    ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+    w:[0,-1], s:[0,1], a:[-1,0], d:[1,0]
+  };
+  window.addEventListener('keydown', function(e){
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if(k === ' ' || e.code === 'Space'){ e.preventDefault(); togglePause(); return; }
+    if(k === 'r'){ restart(); return; }
+    if(k === 't'){ wrap = !wrap; syncButtons(); lastChipKey = ''; syncChips(); savePref(); tone(700, .05, 'square', .03); return; }
+    if(k === 'm'){ soundOn = !soundOn; syncButtons(); savePref(); if(soundOn) tone(780, .07, 'sine', .04); return; }
+    if(k >= '1' && k <= '4'){ setTheme(THEME_KEYS[Number(k) - 1]); return; }
+    const d = KEYS[k];
+    if(!d) return;
+    e.preventDefault();
+    if(!started) start();
+    turn(d[0], d[1]);
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.pad button[data-dir]'), function(b){
+    b.addEventListener('click', function(){
+      if(!started) start();
+      const m = {up:[0,-1], down:[0,1], left:[-1,0], right:[1,0]}[b.dataset.dir];
+      turn(m[0], m[1]);
+    });
+  });
+
+  ovBtn.addEventListener('click', function(){
+    if(!alive){ restart(); return; }
+    if(paused){ togglePause(); return; }
+    start();
+  });
+  document.getElementById('resetBtn').addEventListener('click', restart);
+  pauseBtn.addEventListener('click', togglePause);
+  wrapBtn.addEventListener('click', function(){ wrap = !wrap; syncButtons(); lastChipKey = ''; syncChips(); savePref(); });
+  soundBtn.addEventListener('click', function(){
+    soundOn = !soundOn; syncButtons(); savePref(); if(soundOn) tone(780, .07, 'sine', .04);
+  });
+
+  THEME_KEYS.forEach(function(k, i){
+    const th = THEMES[k];
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.dataset.theme = k;
+    b.title = th.name + '（快捷键 ' + (i + 1) + '）';
+    b.style.background = th.dot;
+    b.addEventListener('click', function(){ setTheme(k); });
+    themeSeg.appendChild(b);
+  });
+  diffSeg.addEventListener('click', function(e){
+    const b = e.target.closest ? e.target.closest('.opt') : null;
+    if(b) setDiff(b.dataset.diff);
+  });
+
+  let tx = 0, ty = 0;
+  cv.addEventListener('touchstart', function(e){
+    const t0 = e.changedTouches[0]; tx = t0.clientX; ty = t0.clientY;
+  }, {passive:true});
+  cv.addEventListener('touchend', function(e){
+    const t0 = e.changedTouches[0];
+    const dx = t0.clientX - tx, dy = t0.clientY - ty;
+    if(Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
+    if(!started) start();
+    if(Math.abs(dx) > Math.abs(dy)) turn(dx > 0 ? 1 : -1, 0);
+    else turn(0, dy > 0 ? 1 : -1);
+  }, {passive:true});
+
+  window.addEventListener('blur', function(){
+    if(started && alive && !paused) togglePause();
+  });
+
+  /* ==================== 启动 ==================== */
+  applyTheme();
+  reset();
+  requestAnimationFrame(function(t){ lastT = t; requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>
